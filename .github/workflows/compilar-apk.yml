@@ -20,21 +20,24 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configurar Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
       - name: Comprobar ZIP
         run: |
-          if [ ! -f "BetaMusic-Android-Fase2-Completo.zip" ]; then
-            echo "::error::No se encontró BetaMusic-Android-Fase2-Completo.zip en la raíz del repositorio."
+          ZIP="BetaMusic-Android-Fase2-Completo.zip"
+
+          if [ ! -f "$ZIP" ]; then
+            echo "::error::No se encontró $ZIP en la raíz del repositorio."
             exit 1
           fi
-          unzip -t "BetaMusic-Android-Fase2-Completo.zip"
+
+          unzip -t "$ZIP"
 
       - name: Extraer proyecto Android
+        shell: bash
         run: |
           mkdir -p extraido
           unzip -q "BetaMusic-Android-Fase2-Completo.zip" -d extraido
@@ -45,13 +48,13 @@ jobs:
             PROYECTO="extraido"
           else
             echo "::error::No se encontró settings.gradle.kts dentro del ZIP."
-            echo "Contenido extraído:"
             find extraido -maxdepth 4 -type f | head -100
             exit 1
           fi
 
           mv "$PROYECTO" proyecto
-          echo "Proyecto localizado en: proyecto"
+
+          echo "Proyecto preparado:"
           ls -la proyecto
 
       - name: Configurar Gradle
@@ -61,13 +64,17 @@ jobs:
         run: gradle --no-daemon -p proyecto assembleDebug
 
       - name: Verificar APK
+        shell: bash
         run: |
           APK="proyecto/app/build/outputs/apk/debug/app-debug.apk"
+
           if [ ! -f "$APK" ]; then
-            echo "::error::La compilación terminó, pero no se encontró el APK esperado."
+            echo "::error::No se encontró el APK después de compilar."
             find proyecto -type f -name "*.apk"
             exit 1
           fi
+
+          echo "APK generado correctamente:"
           ls -lh "$APK"
 
       - name: Guardar APK compilado
