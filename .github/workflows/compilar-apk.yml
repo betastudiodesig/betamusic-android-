@@ -1,17 +1,17 @@
-name: Extraer ZIP y compilar BetaMusic
+name: Compilar BetaMusic Android APK
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main, master]
     paths:
-      - 'BetaMusic-Android-Fase1-Completo.zip'
+      - "BetaMusic-Android-Fase2-Completo.zip"
+      - ".github/workflows/compilar-apk.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -19,35 +19,58 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      - name: Extraer proyecto nuevo
-        run: |
-          mkdir extraido
-          unzip -q BetaMusic-Android-Fase1-Completo.zip -d extraido
-          if [ -f extraido/BetaMusic-Android/settings.gradle.kts ] || [ -f extraido/BetaMusic-Android/settings.gradle ]; then
-            mv extraido/BetaMusic-Android proyecto
-          elif [ -f extraido/settings.gradle.kts ] || [ -f extraido/settings.gradle ]; then
-            mv extraido proyecto
-          else
-            echo "No se encontró settings.gradle ni settings.gradle.kts en el ZIP"
-            find extraido -maxdepth 3 -type f | head -80
-            exit 1
-          fi
-          test -f proyecto/app/build.gradle.kts || test -f proyecto/app/build.gradle
-          echo "PROYECTO=$PWD/proyecto" >> "$GITHUB_ENV"
-
       - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
+          cache: gradle
+
+      - name: Comprobar ZIP
+        run: |
+          if [ ! -f "BetaMusic-Android-Fase2-Completo.zip" ]; then
+            echo "::error::No se encontró BetaMusic-Android-Fase2-Completo.zip en la raíz del repositorio."
+            exit 1
+          fi
+          unzip -t "BetaMusic-Android-Fase2-Completo.zip"
+
+      - name: Extraer proyecto Android
+        run: |
+          mkdir -p extraido
+          unzip -q "BetaMusic-Android-Fase2-Completo.zip" -d extraido
+
+          if [ -f "extraido/BetaMusic-Android/settings.gradle.kts" ]; then
+            PROYECTO="extraido/BetaMusic-Android"
+          elif [ -f "extraido/settings.gradle.kts" ]; then
+            PROYECTO="extraido"
+          else
+            echo "::error::No se encontró settings.gradle.kts dentro del ZIP."
+            echo "Contenido extraído:"
+            find extraido -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+
+          mv "$PROYECTO" proyecto
+          echo "Proyecto localizado en: proyecto"
+          ls -la proyecto
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Compilar APK
-        run: gradle --no-daemon -p "$PROYECTO" assembleDebug
+        run: gradle --no-daemon -p proyecto assembleDebug
 
-      - name: Guardar APK
+      - name: Verificar APK
+        run: |
+          APK="proyecto/app/build/outputs/apk/debug/app-debug.apk"
+          if [ ! -f "$APK" ]; then
+            echo "::error::La compilación terminó, pero no se encontró el APK esperado."
+            find proyecto -type f -name "*.apk"
+            exit 1
+          fi
+          ls -lh "$APK"
+
+      - name: Guardar APK compilado
         uses: actions/upload-artifact@v4
         with:
           name: BetaMusic-Android-debug
