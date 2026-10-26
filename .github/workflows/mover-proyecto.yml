@@ -1,0 +1,43 @@
+name: Mover proyecto Android a la raíz
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mover-proyecto:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Mover contenido a la raíz
+        run: |
+          if [ ! -d "BetaMusic-Android" ]; then
+            echo "ERROR: No existe la carpeta BetaMusic-Android"
+            exit 1
+          fi
+
+          cp -a BetaMusic-Android/. .
+          rm -rf BetaMusic-Android
+          rm -f BetaMusic-Android-2.0-Rebuilt.zip
+
+      - name: Guardar cambios
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No hay cambios que guardar"
+            exit 0
+          fi
+
+          git commit -m "Move Android project to repository root"
+          git push origin HEAD
